@@ -2,26 +2,104 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+@layer base {
+  :root {
+    /* Light: beyaz kart, açık mavi zemin, koyu mavi primary */
+    --background:    214 50% 95%;
+    --foreground:    214 40% 10%;
+
+    --card:          0 0% 100%;
+    --card-foreground: 214 40% 10%;
+
+    --popover:       0 0% 100%;
+    --popover-foreground: 214 40% 10%;
+
+    --primary:       214 90% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:     214 35% 88%;
+    --secondary-foreground: 214 40% 18%;
+
+    --muted:         214 25% 91%;
+    --muted-foreground: 214 18% 50%;
+
+    --accent:        214 90% 93%;
+    --accent-foreground: 214 90% 28%;
+
+    --destructive:   0 84% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border:        214 28% 85%;
+    --input:         214 28% 85%;
+    --ring:          214 90% 40%;
+
+    --radius: 0.6rem;
+
+    --sidebar:       214 45% 20%;
+    --sidebar-foreground: 214 20% 92%;
+    --sidebar-muted: 214 30% 55%;
+    --sidebar-active: 214 90% 55%;
+    --sidebar-active-foreground: 0 0% 100%;
+    --sidebar-hover: 214 35% 28%;
+    --sidebar-border: 214 35% 28%;
+  }
+
+  .dark {
+    /* Dark: koyu lacivert zemin, mavi primary */
+    --background:    218 35% 8%;
+    --foreground:    214 20% 93%;
+
+    --card:          218 28% 12%;
+    --card-foreground: 214 20% 93%;
+
+    --popover:       218 28% 12%;
+    --popover-foreground: 214 20% 93%;
+
+    --primary:       214 90% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:     218 22% 20%;
+    --secondary-foreground: 214 20% 88%;
+
+    --muted:         218 22% 17%;
+    --muted-foreground: 214 15% 58%;
+
+    --accent:        218 28% 22%;
+    --accent-foreground: 214 90% 70%;
+
+    --destructive:   0 62% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border:        218 22% 22%;
+    --input:         218 22% 22%;
+    --ring:          214 90% 58%;
+
+    --sidebar:       218 38% 6%;
+    --sidebar-foreground: 214 20% 88%;
+    --sidebar-muted: 214 18% 50%;
+    --sidebar-active: 214 90% 58%;
+    --sidebar-active-foreground: 0 0% 100%;
+    --sidebar-hover: 218 28% 15%;
+    --sidebar-border: 218 28% 16%;
+  }
+}
+
+/* Sidebar custom colors */
+.sidebar-nav-link {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors;
+  color: hsl(var(--sidebar-muted));
+}
+.sidebar-nav-link:hover {
+  background: hsl(var(--sidebar-hover));
+  color: hsl(var(--sidebar-foreground));
+}
+.sidebar-nav-link.active {
+  background: hsl(var(--sidebar-active));
+  color: hsl(var(--sidebar-active-foreground));
 }

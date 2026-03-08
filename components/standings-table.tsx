@@ -36,18 +36,22 @@ export function StandingsTable({ rows, currentUserId }: StandingsTableProps) {
             className={row.user_id === currentUserId ? "bg-primary/5 font-medium" : ""}
           >
             <TableCell>
-              {row.rank <= 3 ? (
-                <Badge variant={row.rank === 1 ? "default" : "secondary"} className="w-7 h-7 flex items-center justify-center rounded-full p-0">
-                  {row.rank}
-                </Badge>
+              {row.rank === 1 ? (
+                <span className="text-2xl leading-none" title="Lider">👑</span>
+              ) : row.rank === 2 ? (
+                <Badge variant="secondary" className="w-7 h-7 flex items-center justify-center rounded-full p-0">2</Badge>
+              ) : row.rank === 3 ? (
+                <Badge variant="secondary" className="w-7 h-7 flex items-center justify-center rounded-full p-0">3</Badge>
               ) : (
                 <span className="text-muted-foreground">{row.rank}</span>
               )}
             </TableCell>
             <TableCell>
-              <div>
-                <div className="font-medium">{row.display_name || row.username}</div>
-                <div className="text-xs text-muted-foreground">@{row.username}</div>
+              <div className="flex items-center gap-1.5">
+                <div>
+                  <div className="font-medium">{row.display_name || row.username}</div>
+                  <div className="text-xs text-muted-foreground">@{row.username}</div>
+                </div>
               </div>
             </TableCell>
             <TableCell className="text-right text-muted-foreground">{row.predictions_made}</TableCell>

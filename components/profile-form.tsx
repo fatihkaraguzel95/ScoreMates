@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { TUTORIAL_KEY } from "@/components/tutorial-modal"
+import { BookOpen } from "lucide-react"
 import type { Profile } from "@/types"
 
 const SUPER_LIG_TEAMS = [
@@ -85,9 +87,22 @@ export function ProfileForm({ profile }: Props) {
           </p>
         </div>
 
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Kaydediliyor..." : "Kaydet"}
-        </Button>
+        <div className="flex items-center gap-3 pt-1">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Kaydediliyor..." : "Kaydet"}
+          </Button>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              localStorage.removeItem(TUTORIAL_KEY)
+              window.dispatchEvent(new Event("show-tutorial"))
+            }}
+          >
+            <BookOpen className="h-4 w-4 mr-2" />
+            Tanıtımı Tekrar Gör
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

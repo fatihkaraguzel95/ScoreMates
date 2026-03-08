@@ -4,13 +4,32 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Trophy } from "lucide-react"
+import { Trophy, CheckCircle2, XCircle, Pencil } from "lucide-react"
 
 interface League { id: string; name: string }
 interface Question { id?: string; question_text: string; correct_answer: number | null; sort_order: number }
+interface Suggestion {
+  id: string
+  user_id: string
+  league_id: string
+  question_text: string
+  status: "pending" | "approved" | "rejected"
+  admin_note: string | null
+  created_at: string
+  profiles: { username: string; display_name: string | null } | null
+  leagues: { name: string } | null
+}
 
 const DEFAULT_QUESTIONS = [
   "Bu hafta toplam kaç gol atılacak?",
@@ -33,13 +52,30 @@ export default function AdminSpecialPage() {
   const [calculating, setCalculating] = useState(false)
   const [calcResult, setCalcResult] = useState<{ winners: string[]; bonusPoints: number; minDist: number } | null>(null)
 
+  // Suggestions
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [reviewDialog, setReviewDialog] = useState<Suggestion | null>(null)
+  const [reviewText, setReviewText] = useState("")
+  const [reviewNote, setReviewNote] = useState("")
+  const [reviewSaving, setReviewSaving] = useState(false)
+  const [suggestionFilter, setSuggestionFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending")
+
   useEffect(() => {
-    fetch("/api/admin/matches").then(r => r.json()).then(() => {})
-    // Load leagues
     fetch("/api/admin/leagues").then(r => r.ok ? r.json() : null).then(d => {
       if (d?.leagues) setLeagues(d.leagues)
     })
+    loadSuggestions("pending")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  async function loadSuggestions(status: typeof suggestionFilter) {
+    setSuggestionFilter(status)
+    const res = await fetch(`/api/admin/suggestions?status=${status}`)
+    if (res.ok) {
+      const d = await res.json()
+      setSuggestions(d.suggestions ?? [])
+    }
+  }
 
   const loadQuestions = useCallback(async () => {
     if (!selectedLeague || !weekNumber) return
@@ -107,16 +143,135 @@ export default function AdminSpecialPage() {
     setCalculating(false)
   }
 
+  function openReview(s: Suggestion) {
+    setReviewDialog(s)
+    setReviewText(s.question_text)
+    setReviewNote("")
+  }
+
+  async function handleReview(action: "approve" | "reject") {
+    if (!reviewDialog) return
+    setReviewSaving(true)
+    const res = await fetch("/api/admin/suggestions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: reviewDialog.id,
+        action,
+        question_text: reviewText,
+        admin_note: reviewNote,
+      }),
+    })
+    const d = await res.json()
+    if (res.ok) {
+      toast({ title: action === "approve" ? "Onaylandı!" : "Reddedildi." })
+      setReviewDialog(null)
+      loadSuggestions(suggestionFilter)
+    } else {
+      toast({ title: "Hata", description: d.error, variant: "destructive" })
+    }
+    setReviewSaving(false)
+  }
+
+  function useAsQuestion(text: string) {
+    // Fill the first empty question slot with this text
+    const idx = questions.findIndex(q => !q.question_text.trim())
+    const updated = [...questions]
+    if (idx >= 0) {
+      updated[idx] = { ...updated[idx], question_text: text }
+    } else {
+      // Replace last one if all are filled
+      updated[4] = { ...updated[4], question_text: text }
+    }
+    setQuestions(updated)
+    toast({ title: "Soru slotuна eklendi", description: "Soruları kaydetmeyi unutma." })
+  }
+
   const hasIds = questions.some(q => q.id)
+  const pendingCount = suggestions.filter(s => s.status === "pending").length
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Özel Tahminler</h1>
-        <p className="text-muted-foreground mt-1">Haftalık istatistik sorularını yönet ve kazananları belirle.</p>
+        <p className="text-muted-foreground mt-1">Haftalık istatistik sorularını yönet ve kullanıcı önerilerini incele.</p>
       </div>
 
-      {/* League + Week selector */}
+      {/* ── Suggestion Review ────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                Soru Önerileri
+                {pendingCount > 0 && suggestionFilter === "pending" && (
+                  <Badge variant="destructive" className="text-xs">{pendingCount} bekliyor</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>Kullanıcıların önerdiği sorular. Düzenleyip onaylayabilir veya reddedebilirsin.</CardDescription>
+            </div>
+            <div className="flex gap-1.5">
+              {(["pending", "approved", "rejected", "all"] as const).map(f => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={suggestionFilter === f ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => loadSuggestions(f)}
+                >
+                  {f === "pending" ? "Bekleyen" : f === "approved" ? "Onaylı" : f === "rejected" ? "Reddedilen" : "Tümü"}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {suggestions.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              {suggestionFilter === "pending" ? "Bekleyen öneri yok." : "Öneri bulunamadı."}
+            </p>
+          ) : (
+            <div className="divide-y">
+              {suggestions.map(s => {
+                const name = s.profiles?.display_name || s.profiles?.username || "?"
+                const leagueName = s.leagues?.name || "?"
+                return (
+                  <div key={s.id} className="py-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-xs font-semibold">{name}</span>
+                        <span className="text-xs text-muted-foreground">→ {leagueName}</span>
+                        <Badge
+                          variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}
+                          className="text-[10px] h-4"
+                        >
+                          {s.status === "pending" ? "Bekliyor" : s.status === "approved" ? "Onaylı" : "Reddedildi"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm leading-snug">{s.question_text}</p>
+                      {s.admin_note && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">Not: {s.admin_note}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      {s.status === "approved" && loaded && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => useAsQuestion(s.question_text)}>
+                          Soruya Ekle
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openReview(s)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Weekly Questions ─────────────────────────────────── */}
       <Card>
         <CardHeader>
           <CardTitle>Lig & Hafta Seç</CardTitle>
@@ -151,12 +306,13 @@ export default function AdminSpecialPage() {
         </CardContent>
       </Card>
 
-      {/* Questions */}
       {loaded && (
         <Card>
           <CardHeader>
-            <CardTitle>Sorular</CardTitle>
-            <CardDescription>5 soruyu düzenleyin. Soru metinleri boş bırakılırsa kaydedilmez.</CardDescription>
+            <CardTitle>Sorular — Hafta {weekNumber}</CardTitle>
+            <CardDescription>
+              Soru metinlerini düzenleyin. Onaylı öneriler için &quot;Soruya Ekle&quot; butonunu kullanabilirsiniz.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {questions.map((q, i) => (
@@ -219,7 +375,7 @@ export default function AdminSpecialPage() {
         </Card>
       )}
 
-      {/* Info */}
+      {/* How it works */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -228,13 +384,65 @@ export default function AdminSpecialPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1">
-          <p>1. Hafta başında 5 soruyu oluşturun ve kaydedin.</p>
-          <p>2. Kullanıcılar tahminlerini <strong>Özel Tahminler</strong> sayfasından girer.</p>
-          <p>3. Hafta bittikten sonra her soruya doğru cevabı girin ve <strong>Cevapları Kaydet</strong>&apos;e basın.</p>
-          <p>4. <strong>Kazananı Hesapla</strong>&apos;ya basın — toplam farkı en az olan kişi bonus puan alır.</p>
-          <p>5. Bonus miktarı Admin → Settings → <strong>Özel Tahmin Bonus</strong> alanından ayarlanır.</p>
+          <p>1. Kullanıcılar <strong>Profil</strong> sayfasından lig başına 1 soru önerir.</p>
+          <p>2. Öneriler burada listelenir — düzenleyip <strong>Onayla</strong> veya <strong>Reddet</strong>.</p>
+          <p>3. Onaylı önerileri haftalık soru slotuna <strong>Soruya Ekle</strong> ile ekle.</p>
+          <p>4. Hafta sonunda cevapları gir ve <strong>Kazananı Hesapla</strong>&apos;ya bas.</p>
         </CardContent>
       </Card>
+
+      {/* Review Dialog */}
+      <Dialog open={!!reviewDialog} onOpenChange={(o) => !o && setReviewDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Öneriyi İncele</DialogTitle>
+            <DialogDescription>
+              {reviewDialog?.profiles?.display_name || reviewDialog?.profiles?.username} tarafından önerildi
+              {reviewDialog?.leagues?.name ? ` — ${reviewDialog.leagues.name}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Soru Metni</Label>
+              <Textarea
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                rows={3}
+                placeholder="Soru metnini düzenleyebilirsin..."
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">Onaylamadan önce düzenleyebilirsin.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Admin Notu <span className="text-muted-foreground font-normal">(isteğe bağlı)</span></Label>
+              <Input
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                placeholder="Reddetme sebebi veya not..."
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => handleReview("approve")}
+                disabled={reviewSaving || !reviewText.trim()}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {reviewSaving ? "..." : "Onayla"}
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => handleReview("reject")}
+                disabled={reviewSaving}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                {reviewSaving ? "..." : "Reddet"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

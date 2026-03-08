@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Trophy, Settings, LogOut } from "lucide-react";
+import { Trophy, Settings, LogOut, User } from "lucide-react";
 import type { Profile } from "@/types";
 
 export function MobileHeader({ profile }: { profile: Profile }) {
@@ -55,6 +55,13 @@ export function MobileHeader({ profile }: { profile: Profile }) {
               <p className="font-medium text-sm">{profile.display_name || profile.username}</p>
               <p className="text-xs text-muted-foreground">@{profile.username}</p>
             </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/profile">
+                <User className="h-4 w-4 mr-2" />
+                Profilim
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             {profile.is_admin && (
               <>

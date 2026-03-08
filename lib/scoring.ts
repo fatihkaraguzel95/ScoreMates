@@ -3,9 +3,13 @@ import type { ScoringSettings } from '@/types'
 export function calculatePoints(
   predicted: { home: number; away: number },
   actual: { home: number; away: number },
-  scoring: ScoringSettings
+  scoring: ScoringSettings,
+  isFavoriteTeamMatch = false
 ): number {
   if (predicted.home === actual.home && predicted.away === actual.away) {
+    if (isFavoriteTeamMatch && scoring.favorite_team_exact) {
+      return scoring.favorite_team_exact
+    }
     return scoring.exact_score
   }
 

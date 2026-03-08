@@ -167,7 +167,7 @@ export function AppSidebar({ profile }: { profile: Profile }) {
         className="px-3 py-3 space-y-1 shrink-0"
         style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
       >
-        <div className="flex items-center gap-2 px-3 py-2">
+        <Link href="/profile" className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors hover:bg-white/5">
           <Avatar className="h-7 w-7 shrink-0">
             <AvatarFallback
               className="text-xs font-bold"
@@ -191,7 +191,7 @@ export function AppSidebar({ profile }: { profile: Profile }) {
             </p>
           </div>
           <ThemeToggle />
-        </div>
+        </Link>
         <button
           onClick={handleSignOut}
           className="sidebar-nav-link w-full"

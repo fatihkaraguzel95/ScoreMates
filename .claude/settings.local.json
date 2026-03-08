@@ -10,7 +10,8 @@
       "Bash(node:*)",
       "Bash(pkill:*)",
       "Bash(npx next:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(ls:*)"
     ]
   }
 }

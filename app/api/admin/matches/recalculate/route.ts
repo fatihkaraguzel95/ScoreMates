@@ -23,12 +23,12 @@ export async function POST() {
     .select("value")
     .eq("key", "scoring")
     .single()
-  const scoring = (settingsRow?.value ?? { exact_score: 4, goal_difference: 3, correct_winner: 2 }) as ScoringSettings
+  const scoring = (settingsRow?.value ?? { exact_score: 4, goal_difference: 3, correct_winner: 2, favorite_team_exact: 5 }) as ScoringSettings
 
   // Get all finished matches with scores
   const { data: finishedMatches } = await adminSupabase
     .from("matches")
-    .select("id, home_score, away_score, week_number, season_year")
+    .select("id, home_team, away_team, home_score, away_score, week_number, season_year")
     .eq("status", "finished")
     .not("home_score", "is", null)
     .not("away_score", "is", null)
@@ -37,23 +37,42 @@ export async function POST() {
     return NextResponse.json({ recalculated: 0, message: "Biten maç yok." })
   }
 
-  let recalculated = 0
-  const matchWeekMap: Record<string, { week_number: number; season_year: number }> = {}
+  // Get all user favorite teams
+  const { data: profilesData } = await adminSupabase
+    .from("profiles")
+    .select("id, favorite_team")
+  const favTeamByUser: Record<string, string | null> = Object.fromEntries(
+    (profilesData ?? []).map(p => [p.id, p.favorite_team ?? null])
+  )
 
-  // Phase 1: Update predictions.points_earned for all finished matches
+  let recalculated = 0
+  const matchWeekMap: Record<string, { week_number: number; season_year: number; home_team: string; away_team: string }> = {}
+
+  // Phase 1: Update predictions.points_earned
   for (const match of finishedMatches) {
-    matchWeekMap[match.id] = { week_number: match.week_number, season_year: match.season_year }
+    matchWeekMap[match.id] = {
+      week_number: match.week_number,
+      season_year: match.season_year,
+      home_team: match.home_team,
+      away_team: match.away_team,
+    }
 
     const { data: predictions } = await adminSupabase
       .from("predictions")
-      .select("id, predicted_home, predicted_away")
+      .select("id, user_id, predicted_home, predicted_away")
       .eq("match_id", match.id)
 
     for (const pred of predictions ?? []) {
+      const favTeam = favTeamByUser[pred.user_id]
+      const isFavMatch = favTeam
+        ? match.home_team === favTeam || match.away_team === favTeam
+        : false
+
       const points = calculatePoints(
         { home: pred.predicted_home, away: pred.predicted_away },
         { home: match.home_score!, away: match.away_score! },
-        scoring
+        scoring,
+        isFavMatch
       )
       await adminSupabase
         .from("predictions")

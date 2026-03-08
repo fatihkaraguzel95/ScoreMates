@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, createClient } from "@/lib/supabase/server"
+import { calculatePoints } from "@/lib/scoring"
+import type { ScoringSettings } from "@/types"
 
 export async function POST(req: NextRequest) {
   const supabase = createClient()
@@ -20,7 +22,6 @@ export async function POST(req: NextRequest) {
   const adminSupabase = createAdminClient()
 
   if (match_id) {
-    // Update existing match
     const { error } = await adminSupabase
       .from("matches")
       .update({ home_team, away_team, match_date, week_number, season_year, status, home_score, away_score })
@@ -28,14 +29,12 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // If finished, trigger point calculation
     if (status === "finished" && home_score !== null && away_score !== null) {
-      await calculatePointsForMatch(adminSupabase, match_id, home_score, away_score, week_number, season_year)
+      await calculatePointsForMatch(adminSupabase, match_id, home_team, away_team, home_score, away_score, week_number, season_year)
     }
 
     return NextResponse.json({ success: true })
   } else {
-    // Insert new match with a generated external_id
     const externalId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     const { data: match, error } = await adminSupabase
       .from("matches")
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     if (status === "finished" && home_score !== null && away_score !== null && match) {
-      await calculatePointsForMatch(adminSupabase, match.id, home_score, away_score, week_number, season_year)
+      await calculatePointsForMatch(adminSupabase, match.id, home_team, away_team, home_score, away_score, week_number, season_year)
     }
 
     return NextResponse.json({ success: true, id: match?.id })
@@ -57,6 +56,8 @@ async function calculatePointsForMatch(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adminSupabase: any,
   matchId: string,
+  homeTeam: string,
+  awayTeam: string,
   homeScore: number,
   awayScore: number,
   weekNumber: number,
@@ -64,7 +65,13 @@ async function calculatePointsForMatch(
 ) {
   const { data: scoringRow } = await adminSupabase
     .from("settings").select("value").eq("key", "scoring").single()
-  const scoring = scoringRow?.value ?? { exact_score: 4, goal_difference: 3, correct_winner: 2 }
+  const scoring = (scoringRow?.value ?? { exact_score: 4, goal_difference: 3, correct_winner: 2, favorite_team_exact: 5 }) as ScoringSettings
+
+  // Get user favorite teams
+  const { data: profilesData } = await adminSupabase.from("profiles").select("id, favorite_team")
+  const favTeamByUser: Record<string, string | null> = Object.fromEntries(
+    (profilesData ?? []).map((p: { id: string; favorite_team: string | null }) => [p.id, p.favorite_team ?? null])
+  )
 
   const { data: predictions } = await adminSupabase
     .from("predictions")
@@ -72,35 +79,46 @@ async function calculatePointsForMatch(
     .eq("match_id", matchId)
 
   for (const pred of predictions ?? []) {
-    const predDiff = pred.predicted_home - pred.predicted_away
-    const actualDiff = homeScore - awayScore
-    let points = 0
-    if (pred.predicted_home === homeScore && pred.predicted_away === awayScore) {
-      points = scoring.exact_score
-    } else if (predDiff === actualDiff) {
-      points = scoring.goal_difference
-    } else if (Math.sign(predDiff) === Math.sign(actualDiff)) {
-      points = scoring.correct_winner
-    }
+    const favTeam = favTeamByUser[pred.user_id]
+    const isFavMatch = favTeam ? homeTeam === favTeam || awayTeam === favTeam : false
+
+    const points = calculatePoints(
+      { home: pred.predicted_home, away: pred.predicted_away },
+      { home: homeScore, away: awayScore },
+      scoring,
+      isFavMatch
+    )
 
     await adminSupabase.from("predictions").update({ points_earned: points }).eq("id", pred.id)
+  }
 
-    const { data: existing } = await adminSupabase
-      .from("weekly_points")
-      .select("id, points, predictions_made")
-      .eq("user_id", pred.user_id)
-      .eq("league_id", pred.league_id)
-      .eq("week_number", weekNumber)
-      .eq("season_year", seasonYear)
-      .single()
+  // Recalculate weekly_points for this match's week
+  const { data: allWeekMatches } = await adminSupabase
+    .from("matches").select("id").eq("week_number", weekNumber).eq("status", "finished")
+  const allWeekMatchIds = (allWeekMatches ?? []).map((m: { id: string }) => m.id)
 
-    if (existing) {
-      await adminSupabase.from("weekly_points")
-        .update({ points: existing.points + points, predictions_made: existing.predictions_made + 1 })
-        .eq("id", existing.id)
-    } else {
-      await adminSupabase.from("weekly_points")
-        .insert({ user_id: pred.user_id, league_id: pred.league_id, week_number: weekNumber, season_year: seasonYear, points, predictions_made: 1 })
-    }
+  const { data: allWeekPreds } = await adminSupabase
+    .from("predictions")
+    .select("user_id, league_id, points_earned")
+    .in("match_id", allWeekMatchIds)
+    .not("points_earned", "is", null)
+
+  const weeklyAgg: Record<string, { user_id: string; league_id: string; points: number; predictions_made: number }> = {}
+  for (const p of allWeekPreds ?? []) {
+    const key = `${p.user_id}:${p.league_id}`
+    if (!weeklyAgg[key]) weeklyAgg[key] = { user_id: p.user_id, league_id: p.league_id, points: 0, predictions_made: 0 }
+    weeklyAgg[key].points += p.points_earned ?? 0
+    weeklyAgg[key].predictions_made += 1
+  }
+
+  for (const data of Object.values(weeklyAgg)) {
+    await adminSupabase.from("weekly_points").upsert({
+      user_id: data.user_id,
+      league_id: data.league_id,
+      week_number: weekNumber,
+      season_year: seasonYear,
+      points: data.points,
+      predictions_made: data.predictions_made,
+    }, { onConflict: "user_id,league_id,week_number,season_year" })
   }
 }

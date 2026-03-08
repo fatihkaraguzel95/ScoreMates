@@ -52,9 +52,16 @@ export async function POST(req: NextRequest) {
     external_ids_from_api: finishedEvents.map(e => String(e.id)),
   }
 
+  // Fetch user favorite teams
+  const { data: profilesData } = await adminSupabase.from("profiles").select("id, favorite_team")
+  const favTeamByUser: Record<string, string | null> = Object.fromEntries(
+    (profilesData ?? []).map((p: { id: string; favorite_team: string | null }) => [p.id, p.favorite_team ?? null])
+  )
+
   let updated = 0
   let pointsCalculated = 0
   const processedMatchIds: string[] = []
+  const processedMatchTeams: Record<string, { home: string; away: string }> = {}
 
   for (const event of finishedEvents) {
     const externalId = String(event.id)
@@ -71,23 +78,30 @@ export async function POST(req: NextRequest) {
         away_score: awayScore,
       })
       .eq("external_id", externalId)
-      .select("id")
+      .select("id, home_team, away_team")
       .single()
 
     if (!match) continue
     updated++
     processedMatchIds.push(match.id)
+    processedMatchTeams[match.id] = { home: match.home_team, away: match.away_team }
 
     const { data: predictions } = await adminSupabase
       .from("predictions")
-      .select("id, predicted_home, predicted_away")
+      .select("id, user_id, predicted_home, predicted_away")
       .eq("match_id", match.id)
 
     for (const pred of predictions ?? []) {
+      const favTeam = favTeamByUser[pred.user_id]
+      const isFavMatch = favTeam
+        ? match.home_team === favTeam || match.away_team === favTeam
+        : false
+
       const points = calculatePoints(
         { home: pred.predicted_home, away: pred.predicted_away },
         { home: homeScore, away: awayScore },
-        scoring
+        scoring,
+        isFavMatch
       )
       await adminSupabase
         .from("predictions")

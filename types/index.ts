@@ -3,6 +3,7 @@ export type Profile = {
   username: string
   display_name: string | null
   is_admin: boolean
+  favorite_team: string | null
   created_at: string
 }
 
@@ -72,6 +73,7 @@ export type ScoringSettings = {
   exact_score: number
   goal_difference: number
   correct_winner: number
+  favorite_team_exact: number
 }
 
 export type ApiFootballSettings = {

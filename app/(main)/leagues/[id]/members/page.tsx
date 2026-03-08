@@ -60,7 +60,7 @@ export default async function MembersPage({ params }: Props) {
         <CardContent>
           <div className="space-y-3">
             {members?.map((m) => {
-              const profile = m.profiles as { username?: string; display_name?: string } | null
+              const profile = (m.profiles as unknown) as { username?: string; display_name?: string } | null
               const initials = (profile?.display_name || profile?.username || "?")
                 .split(" ")
                 .map((n: string) => n[0])

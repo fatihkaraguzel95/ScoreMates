@@ -43,7 +43,7 @@ export default async function StandingsPage({ params, searchParams }: Props) {
   // Build overall standings
   const totalsMap: Record<string, { points: number; predictions_made: number; username: string; display_name: string | null }> = {}
   for (const row of weeklyPoints ?? []) {
-    const profile = row.profiles as { username?: string; display_name?: string } | null
+    const profile = (row.profiles as unknown) as { username?: string; display_name?: string } | null
     if (!totalsMap[row.user_id]) {
       totalsMap[row.user_id] = {
         points: 0,
@@ -76,7 +76,7 @@ export default async function StandingsPage({ params, searchParams }: Props) {
   const weeklyRows: StandingRow[] = (weeklyPoints ?? [])
     .filter((r) => r.week_number === selectedWeek)
     .map((r) => {
-      const profile = r.profiles as { username?: string; display_name?: string } | null
+      const profile = (r.profiles as unknown) as { username?: string; display_name?: string } | null
       return {
         user_id: r.user_id,
         username: profile?.username ?? "?",

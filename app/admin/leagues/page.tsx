@@ -44,7 +44,7 @@ export default async function AdminLeaguesPage() {
             <TableBody>
               {leagues?.map((l) => {
                 const memberCount = (l.league_members as { count: number }[] | null)?.[0]?.count ?? 0
-                const profile = l.profiles as { username?: string } | null
+                const profile = (l.profiles as unknown) as { username?: string } | null
                 return (
                   <TableRow key={l.id}>
                     <TableCell className="font-medium">{l.name}</TableCell>

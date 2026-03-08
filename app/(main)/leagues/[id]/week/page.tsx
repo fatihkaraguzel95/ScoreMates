@@ -95,10 +95,10 @@ export default async function WeekStatusPage({ params }: Props) {
   const sortedMembers = [...(members ?? [])].sort((a, b) => {
     if (a.user_id === user.id) return -1
     if (b.user_id === user.id) return 1
-    const na = (a.profiles as { display_name?: string; username?: string } | null)?.display_name ||
-               (a.profiles as { display_name?: string; username?: string } | null)?.username || ""
-    const nb = (b.profiles as { display_name?: string; username?: string } | null)?.display_name ||
-               (b.profiles as { display_name?: string; username?: string } | null)?.username || ""
+    const na = (a.profiles as unknown as { display_name?: string; username?: string } | null)?.display_name ||
+               (a.profiles as unknown as { display_name?: string; username?: string } | null)?.username || ""
+    const nb = (b.profiles as unknown as { display_name?: string; username?: string } | null)?.display_name ||
+               (b.profiles as unknown as { display_name?: string; username?: string } | null)?.username || ""
     return na.localeCompare(nb)
   })
 
@@ -114,7 +114,7 @@ export default async function WeekStatusPage({ params }: Props) {
         <CardContent className="py-3 px-4">
           <div className="divide-y">
             {sortedMembers.map((member) => {
-              const profile = member.profiles as { username: string; display_name: string | null } | null
+              const profile = (member.profiles as unknown) as { username: string; display_name: string | null } | null
               const name = profile?.display_name || profile?.username || "?"
               const isMe = member.user_id === user.id
               const completedCount = (matches ?? []).filter((m) =>
@@ -162,7 +162,7 @@ export default async function WeekStatusPage({ params }: Props) {
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {sortedMembers.map((member) => {
-                    const profile = member.profiles as { username: string; display_name: string | null } | null
+                    const profile = (member.profiles as unknown) as { username: string; display_name: string | null } | null
                     const name = profile?.display_name || profile?.username || "?"
                     const submitted = submittedSet.has(`${match.id}:${member.user_id}`)
                     const isMe = member.user_id === user.id

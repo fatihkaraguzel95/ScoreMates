@@ -97,6 +97,7 @@ function TeamLogo({
   if (custom) {
     const px = Math.max(20, Math.min(56, Math.round(32 * (custom.size / 100))))
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={custom.base64}
         alt={name}

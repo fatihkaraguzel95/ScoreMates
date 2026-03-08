@@ -166,7 +166,7 @@ export default async function HistoryPage({ params, searchParams }: Props) {
                   ) : (
                     <div className="divide-y">
                       {preds.map(p => {
-                        const profile = p.profiles as { username: string; display_name: string | null } | null
+                        const profile = (p.profiles as unknown) as { username: string; display_name: string | null } | null
                         const name = profile?.display_name || profile?.username || "?"
                         const pts = p.points_earned ?? 0
                         const isMe = p.user_id === user.id

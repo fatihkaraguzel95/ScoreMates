@@ -221,6 +221,7 @@ export function TeamLogosManager({ initialLogos, allTeams }: Props) {
                     className="border rounded bg-muted/20 flex items-center justify-center"
                     style={{ width: previewSize + 8, height: previewSize + 8 }}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={base64}
                       alt="önizleme"
@@ -271,6 +272,7 @@ export function TeamLogosManager({ initialLogos, allTeams }: Props) {
                   >
                     <CardContent className="p-3 flex flex-col items-center gap-2">
                       <div className="h-14 flex items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={logo.logo_base64}
                           alt={logo.team_name}

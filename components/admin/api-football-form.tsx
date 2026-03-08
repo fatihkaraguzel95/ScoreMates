@@ -20,9 +20,7 @@ export function ApiFootballSettingsForm({ initialValue }: Props) {
   const [tournamentId, setTournamentId] = useState((initialValue.tournament_id as string) ?? "52")
   const [seasonId, setSeasonId] = useState((initialValue.season_id as string) ?? "77805")
   const [seasonYear, setSeasonYear] = useState((initialValue.season_year as string) ?? "2025")
-  const [baseUrl, setBaseUrl] = useState(
-    (initialValue.base_url as string) ?? "https://sportapi7.p.rapidapi.com"
-  )
+  const baseUrl = (initialValue.base_url as string) ?? "https://sportapi7.p.rapidapi.com"
   const [seasonActive, setSeasonActive] = useState((initialValue.season_active as boolean) ?? true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)

@@ -19,6 +19,7 @@ function TeamName({ name, teamLogos }: { name: string; teamLogos: TeamLogosMap }
   return (
     <span className="inline-flex items-center gap-1.5">
       {custom && (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={custom.base64}
           alt={name}

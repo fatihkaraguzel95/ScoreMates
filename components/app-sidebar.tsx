@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   History,
   ListChecks,
+  Sparkles,
 } from "lucide-react";
 import type { Profile } from "@/types";
 import { cn } from "@/lib/utils";
@@ -141,6 +142,7 @@ export function AppSidebar({ profile }: { profile: Profile }) {
 
             <NavLink href={`/leagues/${leagueId}/standings`} label="Puan Durumu" icon={BarChart3} />
             <NavLink href={`/leagues/${leagueId}/predictions`} label="Tahmin Gir" icon={Target} />
+            <NavLink href={`/leagues/${leagueId}/special`} label="Özel Tahminler" icon={Sparkles} />
             <NavLink href={`/leagues/${leagueId}/week`} label="Bu Hafta Durumu" icon={ListChecks} />
             <NavLink href={`/leagues/${leagueId}/history`} label="Geçmiş Sonuçlar" icon={History} />
             <NavLink href={`/leagues/${leagueId}/chat`} label="Sohbet" icon={MessageSquare} />

@@ -19,6 +19,7 @@ export function ScoringSettingsForm({ initialValue }: Props) {
   const [goalDiff, setGoalDiff] = useState(String(initialValue.goal_difference ?? 3))
   const [correctWinner, setCorrectWinner] = useState(String(initialValue.correct_winner ?? 2))
   const [favTeamExact, setFavTeamExact] = useState(String(initialValue.favorite_team_exact ?? 5))
+  const [specialBonus, setSpecialBonus] = useState(String(initialValue.special_bonus ?? 5))
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
@@ -28,6 +29,7 @@ export function ScoringSettingsForm({ initialValue }: Props) {
       goal_difference: parseInt(goalDiff) || 3,
       correct_winner: parseInt(correctWinner) || 2,
       favorite_team_exact: parseInt(favTeamExact) || 5,
+      special_bonus: parseInt(specialBonus) || 5,
     }
     const res = await fetch("/api/admin/settings", {
       method: "POST",
@@ -71,6 +73,11 @@ export function ScoringSettingsForm({ initialValue }: Props) {
             <Label htmlFor="favteam">Tuttuğun Takım (Tam Skor)</Label>
             <Input id="favteam" type="number" min={0} value={favTeamExact} onChange={(e) => setFavTeamExact(e.target.value)} />
             <p className="text-xs text-muted-foreground">Favori takım + birebir skor</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="special">Özel Tahmin Bonus</Label>
+            <Input id="special" type="number" min={0} value={specialBonus} onChange={(e) => setSpecialBonus(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Haftalık istatistik kazananı</p>
           </div>
         </div>
         <Button onClick={handleSave} disabled={saving}>

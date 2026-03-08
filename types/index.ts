@@ -74,6 +74,35 @@ export type ScoringSettings = {
   goal_difference: number
   correct_winner: number
   favorite_team_exact: number
+  special_bonus: number
+}
+
+export type SpecialQuestion = {
+  id: string
+  league_id: string
+  week_number: number
+  question_text: string
+  correct_answer: number | null
+  sort_order: number
+  created_at: string
+}
+
+export type SpecialPrediction = {
+  id: string
+  question_id: string
+  user_id: string
+  predicted_value: number
+  created_at: string
+  updated_at: string
+}
+
+export type SpecialBonus = {
+  id: string
+  user_id: string
+  league_id: string
+  week_number: number
+  points: number
+  created_at: string
 }
 
 export type ApiFootballSettings = {

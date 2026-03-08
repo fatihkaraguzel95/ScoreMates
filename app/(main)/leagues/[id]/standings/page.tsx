@@ -52,6 +52,12 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     .in("match_id", finishedMatchIds.length > 0 ? finishedMatchIds : ["00000000-0000-0000-0000-000000000000"])
     .not("points_earned", "is", null)
 
+  // Fetch special bonuses for this league
+  const { data: specialBonuses } = await supabase
+    .from("special_bonuses")
+    .select("user_id, week_number, points, profiles(username, display_name)")
+    .eq("league_id", params.id)
+
   // Build overall standings
   const totalsMap: Record<string, { points: number; predictions_made: number; username: string; display_name: string | null }> = {}
   for (const p of preds ?? []) {
@@ -66,6 +72,14 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     }
     totalsMap[p.user_id].points += p.points_earned ?? 0
     totalsMap[p.user_id].predictions_made += 1
+  }
+  // Add special bonuses to overall
+  for (const b of specialBonuses ?? []) {
+    const profile = (b.profiles as unknown) as { username?: string; display_name?: string } | null
+    if (!totalsMap[b.user_id]) {
+      totalsMap[b.user_id] = { points: 0, predictions_made: 0, username: profile?.username ?? "?", display_name: profile?.display_name ?? null }
+    }
+    totalsMap[b.user_id].points += b.points ?? 0
   }
 
   const overallRows: StandingRow[] = Object.entries(totalsMap)
@@ -98,6 +112,15 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     }
     weeklyMap[p.user_id].points += p.points_earned ?? 0
     weeklyMap[p.user_id].predictions_made += 1
+  }
+  // Add special bonuses for selected week
+  for (const b of specialBonuses ?? []) {
+    if (b.week_number !== selectedWeek) continue
+    const profile = (b.profiles as unknown) as { username?: string; display_name?: string } | null
+    if (!weeklyMap[b.user_id]) {
+      weeklyMap[b.user_id] = { points: 0, predictions_made: 0, username: profile?.username ?? "?", display_name: profile?.display_name ?? null }
+    }
+    weeklyMap[b.user_id].points += b.points ?? 0
   }
 
   const weeklyRows: StandingRow[] = Object.entries(weeklyMap)

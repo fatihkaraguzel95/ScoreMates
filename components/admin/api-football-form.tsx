@@ -79,9 +79,9 @@ export function ApiFootballSettingsForm({ initialValue }: Props) {
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="api-key">RapidAPI Key</Label>
-          {initialValue.api_key && (
+          {!!initialValue.api_key && (
             <div className="rounded-md bg-muted px-3 py-2 flex items-center justify-between gap-2">
-              <span className="font-mono text-xs break-all select-all">{initialValue.api_key as string}</span>
+              <span className="font-mono text-xs break-all select-all">{String(initialValue.api_key)}</span>
               <span className="text-[10px] text-muted-foreground shrink-0">kayıtlı</span>
             </div>
           )}

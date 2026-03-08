@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { MatchCard } from "@/components/match-card"
 import { Button } from "@/components/ui/button"
 import { getTeamLogos } from "@/lib/team-logos"
@@ -20,7 +20,7 @@ export default async function PredictionsPage({ params, searchParams }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, name, created_by")
+    .select("id, name")
     .eq("id", params.id)
     .single()
   if (!league) notFound()
@@ -102,31 +102,6 @@ export default async function PredictionsPage({ params, searchParams }: Props) {
     }
   }
 
-  // Fetch suggestion data
-  const isCreator = league.created_by === user.id
-  const { data: mySuggestion } = await supabase
-    .from("question_suggestions")
-    .select("id, user_id, league_id, question_text, status, admin_note")
-    .eq("user_id", user.id)
-    .eq("league_id", params.id)
-    .maybeSingle()
-
-  let allSuggestions: {
-    id: string; user_id: string; league_id: string; question_text: string
-    status: "pending" | "approved" | "rejected"; admin_note: string | null
-    profiles: { username: string; display_name: string | null } | null
-  }[] = []
-
-  if (isCreator) {
-    const adminSupabase = createAdminClient()
-    const { data } = await adminSupabase
-      .from("question_suggestions")
-      .select("id, user_id, league_id, question_text, status, admin_note, profiles(username, display_name)")
-      .eq("league_id", params.id)
-      .order("created_at", { ascending: false })
-    allSuggestions = (data ?? []) as unknown as typeof allSuggestions
-  }
-
   // Calculate points earned from finished matches this week
   const finishedThisWeek = (matches ?? []).filter(m => m.status === "finished")
   const weekEarned = finishedThisWeek.reduce((sum, m) => {
@@ -192,12 +167,7 @@ export default async function PredictionsPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      <LeagueSuggestionPanel
-        leagueId={params.id}
-        isCreator={isCreator}
-        mySuggestion={mySuggestion ?? null}
-        allSuggestions={allSuggestions}
-      />
+      <LeagueSuggestionPanel leagueId={params.id} userId={user.id} />
     </div>
   )
 }

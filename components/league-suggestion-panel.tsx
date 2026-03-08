@@ -1,281 +1,248 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, Clock, XCircle, Lightbulb, ChevronDown, ChevronUp } from "lucide-react"
+import { Lightbulb, Check, Plus, Sparkles, Pencil } from "lucide-react"
 
-interface Suggestion {
+interface SuggestionItem {
   id: string
   user_id: string
-  league_id: string
   question_text: string
-  status: "pending" | "approved" | "rejected"
-  admin_note: string | null
-}
-
-interface SuggestionWithUser extends Suggestion {
+  status: "pending" | "active"
   profiles: { username: string; display_name: string | null } | null
+  vote_count: number
+  my_vote: boolean
 }
 
 interface Props {
   leagueId: string
-  isCreator: boolean
-  mySuggestion: Suggestion | null
-  allSuggestions: SuggestionWithUser[] // only populated for creator
+  userId: string
 }
 
-const STATUS_CONFIG = {
-  pending: { label: "İnceleniyor", icon: Clock, variant: "secondary" as const },
-  approved: { label: "Onaylandı", icon: CheckCircle2, variant: "default" as const },
-  rejected: { label: "Reddedildi", icon: XCircle, variant: "destructive" as const },
-}
-
-function MySuggestionForm({
-  leagueId,
-  initial,
-}: {
-  leagueId: string
-  initial: Suggestion | null
-}) {
+export function LeagueSuggestionPanel({ leagueId, userId }: Props) {
   const { toast } = useToast()
-  const [text, setText] = useState(initial?.question_text ?? "")
-  const [current, setCurrent] = useState<Suggestion | null>(initial)
-  const [saving, setSaving] = useState(false)
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
+  const [memberCount, setMemberCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [formText, setFormText] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [votingId, setVotingId] = useState<string | null>(null)
 
-  const isApproved = current?.status === "approved"
-  const isRejected = current?.status === "rejected"
-  const canEdit = !isApproved
-  const cfg = current ? STATUS_CONFIG[current.status] : null
+  const mySuggestion = suggestions.find(s => s.user_id === userId)
+
+  const fetchSuggestions = useCallback(async () => {
+    const res = await fetch(`/api/leagues/${leagueId}/suggestions`)
+    if (res.ok) {
+      const data = await res.json()
+      setSuggestions(data.suggestions ?? [])
+      setMemberCount(data.memberCount ?? 0)
+    }
+    setLoading(false)
+  }, [leagueId])
+
+  useEffect(() => { fetchSuggestions() }, [fetchSuggestions])
 
   async function handleSubmit() {
-    if (!text.trim()) return
-    setSaving(true)
-    const res = await fetch("/api/suggestions", {
+    if (!formText.trim()) return
+    setSubmitting(true)
+    const res = await fetch(`/api/leagues/${leagueId}/suggestions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ league_id: leagueId, question_text: text }),
+      body: JSON.stringify({ question_text: formText }),
     })
     const data = await res.json()
     if (res.ok) {
-      toast({ title: "Soru önerildi!", description: "Lig kurucusu onayladıktan sonra aktif olacak." })
-      setCurrent({
-        ...(current ?? { id: "", user_id: "", league_id: leagueId, admin_note: null }),
-        question_text: text,
-        status: "pending",
-      })
+      toast({ title: "Önerin gönderildi!", description: "Tüm üyeler onaylarsa soru özel tahminlere eklenecek." })
+      setFormText("")
+      setShowForm(false)
+      fetchSuggestions()
     } else {
       toast({ title: "Hata", description: data.error, variant: "destructive" })
     }
-    setSaving(false)
+    setSubmitting(false)
   }
 
-  return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">Senin önerin</span>
-        {cfg && (
-          <Badge variant={cfg.variant} className="text-xs shrink-0 flex items-center gap-1">
-            <cfg.icon className="h-3 w-3" />
-            {cfg.label}
-          </Badge>
-        )}
-      </div>
-
-      <Textarea
-        placeholder="Örnek: Bu hafta toplam kaç gol atılacak?"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        disabled={!canEdit}
-        rows={2}
-        className="text-sm resize-none"
-        maxLength={200}
-      />
-
-      {isRejected && current?.admin_note && (
-        <p className="text-xs text-destructive bg-destructive/10 rounded px-2.5 py-1.5">
-          <span className="font-semibold">Kurucu notu:</span> {current.admin_note}
-        </p>
-      )}
-
-      {isApproved && (
-        <p className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 rounded px-2.5 py-1.5">
-          Sorunuz onaylandı! Kurucu haftalık soruları düzenlerken kullanabilir.
-        </p>
-      )}
-
-      {canEdit && (
-        <Button
-          size="sm"
-          onClick={handleSubmit}
-          disabled={saving || !text.trim()}
-          className="h-7 text-xs"
-        >
-          {saving ? "Gönderiliyor..." : isRejected ? "Tekrar Gönder" : current ? "Güncelle" : "Öner"}
-        </Button>
-      )}
-    </div>
-  )
-}
-
-function SuggestionReviewList({
-  leagueId,
-  initialSuggestions,
-}: {
-  leagueId: string
-  initialSuggestions: SuggestionWithUser[]
-}) {
-  const { toast } = useToast()
-  const [suggestions, setSuggestions] = useState(initialSuggestions)
-  const [loadingId, setLoadingId] = useState<string | null>(null)
-  const [noteInputs, setNoteInputs] = useState<Record<string, string>>({})
-
-  const pending = suggestions.filter(s => s.status === "pending")
-  const reviewed = suggestions.filter(s => s.status !== "pending")
-
-  async function handleAction(id: string, action: "approve" | "reject") {
-    setLoadingId(id)
-    const res = await fetch(`/api/leagues/${leagueId}/suggestions`, {
-      method: "PATCH",
+  async function handleVote(suggestionId: string) {
+    setVotingId(suggestionId)
+    const res = await fetch(`/api/leagues/${leagueId}/suggestions/vote`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action, admin_note: noteInputs[id] }),
+      body: JSON.stringify({ suggestion_id: suggestionId }),
     })
     const data = await res.json()
     if (res.ok) {
-      setSuggestions(prev =>
-        prev.map(s =>
-          s.id === id
-            ? { ...s, status: action === "approve" ? "approved" : "rejected", admin_note: noteInputs[id] || null }
-            : s
-        )
-      )
-      toast({ title: action === "approve" ? "Onaylandı!" : "Reddedildi." })
+      if (data.promoted) {
+        toast({ title: "🎉 Soru aktifleşti!", description: "Herkes onayladı! Özel tahminlere eklendi." })
+      }
+      fetchSuggestions()
     } else {
       toast({ title: "Hata", description: data.error, variant: "destructive" })
     }
-    setLoadingId(null)
+    setVotingId(null)
   }
 
-  if (suggestions.length === 0) {
-    return (
-      <p className="text-xs text-muted-foreground py-2">Henüz soru önerisi yok.</p>
-    )
-  }
-
-  return (
-    <div className="space-y-3 mt-1">
-      {pending.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Bekleyen ({pending.length})
-          </p>
-          {pending.map(s => {
-            const name = s.profiles?.display_name || s.profiles?.username || "?"
-            return (
-              <div key={s.id} className="rounded-md border bg-muted/30 p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium">@{s.profiles?.username ?? "?"} — {name}</span>
-                </div>
-                <p className="text-sm">{s.question_text}</p>
-                <Textarea
-                  placeholder="Red notu (isteğe bağlı)..."
-                  value={noteInputs[s.id] ?? ""}
-                  onChange={e => setNoteInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
-                  rows={1}
-                  className="text-xs resize-none"
-                  maxLength={200}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs bg-green-600 hover:bg-green-700"
-                    disabled={loadingId === s.id}
-                    onClick={() => handleAction(s.id, "approve")}
-                  >
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Onayla
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="h-7 text-xs"
-                    disabled={loadingId === s.id}
-                    onClick={() => handleAction(s.id, "reject")}
-                  >
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Reddet
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {reviewed.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            İncelenenler ({reviewed.length})
-          </p>
-          {reviewed.map(s => {
-            const cfg = STATUS_CONFIG[s.status as "approved" | "rejected"]
-            return (
-              <div key={s.id} className="flex items-center gap-2 py-1 border-b last:border-b-0">
-                <Badge variant={cfg.variant} className="text-xs shrink-0 flex items-center gap-1">
-                  <cfg.icon className="h-3 w-3" />
-                  {cfg.label}
-                </Badge>
-                <span className="text-xs text-muted-foreground flex-1 truncate">{s.question_text}</span>
-                <span className="text-xs text-muted-foreground shrink-0">@{s.profiles?.username}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export function LeagueSuggestionPanel({ leagueId, isCreator, mySuggestion, allSuggestions }: Props) {
-  const [open, setOpen] = useState(false)
-
-  const pendingCount = isCreator ? allSuggestions.filter(s => s.status === "pending").length : 0
+  if (loading) return null
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <button
-          onClick={() => setOpen(o => !o)}
-          className="flex items-center justify-between w-full text-left"
-        >
+        <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Lightbulb className="h-4 w-4 text-yellow-500" />
-            Soru Öner
-            {isCreator && pendingCount > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {pendingCount} bekliyor
-              </Badge>
+            Soru Önerileri
+            {suggestions.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{suggestions.length}</Badge>
             )}
           </CardTitle>
-          {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
+          {!mySuggestion && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1"
+              onClick={() => setShowForm(v => !v)}
+            >
+              <Plus className="h-3 w-3" />
+              Soru Öner
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Tüm üyeler onaylarsa soru özel tahminlere otomatik eklenir.
+        </p>
       </CardHeader>
 
-      {open && (
-        <CardContent className="space-y-5 pt-0">
-          <MySuggestionForm leagueId={leagueId} initial={mySuggestion} />
-
-          {isCreator && (
-            <div className="border-t pt-4">
-              <p className="text-sm font-semibold mb-3">Üye Önerileri</p>
-              <SuggestionReviewList leagueId={leagueId} initialSuggestions={allSuggestions} />
+      <CardContent className="space-y-3 pt-0">
+        {/* New suggestion form */}
+        {showForm && !mySuggestion && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border">
+            <Textarea
+              placeholder="Örnek: Bu hafta toplam kaç gol atılacak?"
+              value={formText}
+              onChange={(e) => setFormText(e.target.value)}
+              rows={2}
+              className="text-sm resize-none"
+              maxLength={200}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={submitting || !formText.trim()}>
+                {submitting ? "Gönderiliyor..." : "Öner"}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowForm(false)}>
+                İptal
+              </Button>
             </div>
-          )}
-        </CardContent>
-      )}
+          </div>
+        )}
+
+        {/* Edit my existing pending suggestion */}
+        {mySuggestion && mySuggestion.status === "pending" && showForm && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border">
+            <Textarea
+              value={formText}
+              onChange={(e) => setFormText(e.target.value)}
+              rows={2}
+              className="text-sm resize-none"
+              maxLength={200}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={submitting || !formText.trim()}>
+                {submitting ? "Kaydediliyor..." : "Güncelle"}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowForm(false)}>
+                İptal
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Suggestions list */}
+        {suggestions.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-1">
+            Henüz öneri yok. İlk soruyu sen öner!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {suggestions.map(s => {
+              const isMe = s.user_id === userId
+              const progressPct = memberCount > 0 ? (s.vote_count / memberCount) * 100 : 0
+
+              return (
+                <div
+                  key={s.id}
+                  className={`rounded-lg border p-3 space-y-2 ${isMe ? "border-primary/40 bg-primary/5" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-medium">@{s.profiles?.username ?? "?"}</span>
+                      {isMe && <Badge variant="outline" className="text-[10px] h-4 px-1.5">Senin önerin</Badge>}
+                    </div>
+                    {s.status === "active" ? (
+                      <Badge className="text-xs shrink-0 bg-green-600 hover:bg-green-600 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Aktif
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                        {s.vote_count}/{memberCount}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-sm leading-snug">{s.question_text}</p>
+
+                  {s.status !== "active" && (
+                    <div className="flex items-center gap-3">
+                      <Progress value={progressPct} className="h-1.5 flex-1" />
+                      {isMe ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!showForm && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-xs px-2 gap-1"
+                              onClick={() => { setFormText(s.question_text); setShowForm(true) }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                              Düzenle
+                            </Button>
+                          )}
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Check className="h-3 w-3 text-green-500" />
+                            Onayladın
+                          </span>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant={s.my_vote ? "default" : "outline"}
+                          className="h-7 text-xs shrink-0 gap-1"
+                          disabled={votingId === s.id}
+                          onClick={() => handleVote(s.id)}
+                        >
+                          {s.my_vote ? (
+                            <>
+                              <Check className="h-3 w-3" />
+                              Onayladın
+                            </>
+                          ) : "Onayla"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
     </Card>
   )
 }

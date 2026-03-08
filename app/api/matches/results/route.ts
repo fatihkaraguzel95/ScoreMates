@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, createClient } from "@/lib/supabase/server"
-import { fetchEvents, fetchFinishedEvents, mapStatus } from "@/lib/api-football"
+import { fetchEvents, mapStatus } from "@/lib/api-football"
 import { calculatePoints } from "@/lib/scoring"
 import type { ApiFootballSettings, ScoringSettings } from "@/types"
 

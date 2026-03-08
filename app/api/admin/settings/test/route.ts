@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { api_key, base_url } = await req.json()
+  const { api_key } = await req.json()
 
   // Always SportAPI7 via RapidAPI
   const headers: Record<string, string> = {

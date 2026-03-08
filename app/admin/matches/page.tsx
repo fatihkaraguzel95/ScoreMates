@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { RefreshCw, Download, Plus, Pencil } from "lucide-react"
+import { RefreshCw, Download, Plus, Pencil, Calculator } from "lucide-react"
 import { formatMatchDate } from "@/lib/utils"
 import type { Match } from "@/types"
 
@@ -51,6 +51,7 @@ export default function AdminMatchesPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [updatingResults, setUpdatingResults] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
   const [weekNumber, setWeekNumber] = useState<number | "">("")
   const [manualOpen, setManualOpen] = useState(false)
   const [editMatch, setEditMatch] = useState<Match | null>(null)
@@ -87,6 +88,18 @@ export default function AdminMatchesPage() {
       toast({ title: "Hata", description: data.error ?? "Senkronizasyon başarısız.", variant: "destructive" })
     }
     setSyncing(false)
+  }
+
+  async function handleRecalculate() {
+    setRecalculating(true)
+    const res = await fetch("/api/admin/matches/recalculate", { method: "POST" })
+    const data = await res.json()
+    if (res.ok) {
+      toast({ title: "Puanlar yeniden hesaplandı!", description: `${data.recalculated} tahmin güncellendi, ${data.weeklyUpdated} haftalık puan tablosu yenilendi.` })
+    } else {
+      toast({ title: "Hata", description: data.error ?? "Hesaplama başarısız.", variant: "destructive" })
+    }
+    setRecalculating(false)
   }
 
   async function handleUpdateResults() {
@@ -221,6 +234,10 @@ export default function AdminMatchesPage() {
             <Button variant="outline" onClick={handleUpdateResults} disabled={updatingResults}>
               <RefreshCw className="h-4 w-4 mr-2" />
               {updatingResults ? "Güncelleniyor..." : "Sonuçları Güncelle & Puanla"}
+            </Button>
+            <Button variant="secondary" onClick={handleRecalculate} disabled={recalculating}>
+              <Calculator className="h-4 w-4 mr-2" />
+              {recalculating ? "Hesaplanıyor..." : "Tüm Puanları Yeniden Hesapla"}
             </Button>
           </div>
         </CardContent>

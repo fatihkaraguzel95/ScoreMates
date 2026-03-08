@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { MatchCard } from "@/components/match-card"
 import { Button } from "@/components/ui/button"
 import { getTeamLogos } from "@/lib/team-logos"
+import { Badge } from "@/components/ui/badge"
 import type { FormResult, TeamFormMap } from "@/types"
 
 interface Props {
@@ -100,6 +101,14 @@ export default async function PredictionsPage({ params, searchParams }: Props) {
     }
   }
 
+  // Calculate points earned from finished matches this week
+  const finishedThisWeek = (matches ?? []).filter(m => m.status === "finished")
+  const weekEarned = finishedThisWeek.reduce((sum, m) => {
+    const pred = predByMatchId[m.id]
+    return sum + (pred?.points_earned ?? 0)
+  }, 0)
+  const scoredPredCount = finishedThisWeek.filter(m => predByMatchId[m.id]?.points_earned !== null && predByMatchId[m.id]?.points_earned !== undefined).length
+
   return (
     <div className="space-y-6">
       <div>
@@ -122,6 +131,18 @@ export default async function PredictionsPage({ params, searchParams }: Props) {
               </Link>
             </Button>
           ))}
+        </div>
+      )}
+
+      {/* Week points summary */}
+      {scoredPredCount > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg border bg-card">
+          <div className="text-sm text-muted-foreground">
+            Hafta {selectedWeek} — {scoredPredCount} maç puanlandı
+          </div>
+          <Badge variant="default" className="text-sm px-3 py-1">
+            {weekEarned} pt
+          </Badge>
         </div>
       )}
 

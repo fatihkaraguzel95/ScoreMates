@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -210,9 +211,12 @@ export function MatchCard({ match, leagueId, existingPrediction, teamLogos, team
           {/* Home team */}
           <div className="flex flex-col items-center gap-1.5">
             <TeamLogo src={match.home_team_logo} name={match.home_team} custom={teamLogos?.[match.home_team]} />
-            <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
+            <Link
+              href={`/leagues/${leagueId}/team?name=${encodeURIComponent(match.home_team)}`}
+              className="text-xs font-semibold text-center leading-tight line-clamp-2 hover:underline"
+            >
               {match.home_team}
-            </span>
+            </Link>
             <FormDots form={teamForm?.[match.home_team] ?? []} />
             <Stepper value={homeScore} onChange={handleHome} disabled={locked} />
           </div>
@@ -225,11 +229,15 @@ export function MatchCard({ match, leagueId, existingPrediction, teamLogos, team
                 <p className="text-lg font-bold tabular-nums">
                   {match.home_score}–{match.away_score}
                 </p>
-                {hasPoints && (
-                  <Badge variant="outline" className="mt-1 text-xs px-1.5 py-0">
-                    +{existingPrediction!.points_earned} pt
-                  </Badge>
-                )}
+                {hasPoints && (() => {
+                  const pts = existingPrediction!.points_earned!
+                  const variant = pts >= 4 ? "default" : pts > 0 ? "secondary" : "outline"
+                  return (
+                    <Badge variant={variant} className="mt-1 text-xs px-1.5 py-0">
+                      {pts >= 4 ? `🎯 ${pts}` : pts > 0 ? `+${pts}` : "0"} pt
+                    </Badge>
+                  )
+                })()}
               </div>
             ) : (
               <span className="text-sm font-bold text-muted-foreground">VS</span>
@@ -239,9 +247,12 @@ export function MatchCard({ match, leagueId, existingPrediction, teamLogos, team
           {/* Away team */}
           <div className="flex flex-col items-center gap-1.5">
             <TeamLogo src={match.away_team_logo} name={match.away_team} custom={teamLogos?.[match.away_team]} />
-            <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
+            <Link
+              href={`/leagues/${leagueId}/team?name=${encodeURIComponent(match.away_team)}`}
+              className="text-xs font-semibold text-center leading-tight line-clamp-2 hover:underline"
+            >
               {match.away_team}
-            </span>
+            </Link>
             <FormDots form={teamForm?.[match.away_team] ?? []} />
             <Stepper value={awayScore} onChange={handleAway} disabled={locked} />
           </div>

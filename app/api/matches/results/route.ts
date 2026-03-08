@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
 
   let updated = 0
   let pointsCalculated = 0
+  const processedMatchIds: string[] = []
 
   for (const event of finishedEvents) {
     const externalId = String(event.id)
@@ -75,10 +76,11 @@ export async function POST(req: NextRequest) {
 
     if (!match) continue
     updated++
+    processedMatchIds.push(match.id)
 
     const { data: predictions } = await adminSupabase
       .from("predictions")
-      .select("id, user_id, league_id, predicted_home, predicted_away")
+      .select("id, predicted_home, predicted_away")
       .eq("match_id", match.id)
 
     for (const pred of predictions ?? []) {
@@ -87,43 +89,49 @@ export async function POST(req: NextRequest) {
         { home: homeScore, away: awayScore },
         scoring
       )
-
       await adminSupabase
         .from("predictions")
         .update({ points_earned: points })
         .eq("id", pred.id)
-
-      const { data: existing } = await adminSupabase
-        .from("weekly_points")
-        .select("id, points, predictions_made")
-        .eq("user_id", pred.user_id)
-        .eq("league_id", pred.league_id)
-        .eq("week_number", round)
-        .eq("season_year", seasonYear)
-        .single()
-
-      if (existing) {
-        await adminSupabase
-          .from("weekly_points")
-          .update({
-            points: (existing.points ?? 0) + points,
-            predictions_made: (existing.predictions_made ?? 0) + 1,
-          })
-          .eq("id", existing.id)
-      } else {
-        await adminSupabase
-          .from("weekly_points")
-          .insert({
-            user_id: pred.user_id,
-            league_id: pred.league_id,
-            week_number: round,
-            season_year: seasonYear,
-            points,
-            predictions_made: 1,
-          })
-      }
-
       pointsCalculated++
+    }
+  }
+
+  // Recalculate weekly_points from scratch for this round (prevents double-counting on re-runs)
+  if (processedMatchIds.length > 0) {
+    const { data: allRoundMatches } = await adminSupabase
+      .from("matches")
+      .select("id")
+      .eq("week_number", round)
+      .eq("status", "finished")
+
+    const allRoundMatchIds = (allRoundMatches ?? []).map(m => m.id)
+
+    const { data: allRoundPreds } = await adminSupabase
+      .from("predictions")
+      .select("user_id, league_id, points_earned")
+      .in("match_id", allRoundMatchIds)
+      .not("points_earned", "is", null)
+
+    const weeklyAgg: Record<string, { user_id: string; league_id: string; points: number; predictions_made: number }> = {}
+    for (const p of allRoundPreds ?? []) {
+      const key = `${p.user_id}:${p.league_id}`
+      if (!weeklyAgg[key]) weeklyAgg[key] = { user_id: p.user_id, league_id: p.league_id, points: 0, predictions_made: 0 }
+      weeklyAgg[key].points += p.points_earned ?? 0
+      weeklyAgg[key].predictions_made += 1
+    }
+
+    for (const data of Object.values(weeklyAgg)) {
+      await adminSupabase
+        .from("weekly_points")
+        .upsert({
+          user_id: data.user_id,
+          league_id: data.league_id,
+          week_number: round,
+          season_year: seasonYear,
+          points: data.points,
+          predictions_made: data.predictions_made,
+        }, { onConflict: "user_id,league_id,week_number,season_year" })
     }
   }
 

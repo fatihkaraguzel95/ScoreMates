@@ -6,18 +6,21 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatMatchDate } from "@/lib/utils"
 import { getTeamLogos } from "@/lib/team-logos"
-import type { TeamLogosMap } from "@/types"
+import type { ScoringSettings, TeamLogosMap } from "@/types"
 
 interface Props {
   params: { id: string }
   searchParams: { week?: string }
 }
 
-function TeamName({ name, teamLogos }: { name: string; teamLogos: TeamLogosMap }) {
+function TeamName({ name, teamLogos, leagueId }: { name: string; teamLogos: TeamLogosMap; leagueId: string }) {
   const custom = teamLogos[name]
   const px = custom ? Math.max(16, Math.min(28, Math.round(20 * (custom.size / 100)))) : 0
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <Link
+      href={`/leagues/${leagueId}/team?name=${encodeURIComponent(name)}`}
+      className="inline-flex items-center gap-1.5 hover:underline"
+    >
       {custom && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -28,7 +31,7 @@ function TeamName({ name, teamLogos }: { name: string; teamLogos: TeamLogosMap }
         />
       )}
       <span>{name}</span>
-    </span>
+    </Link>
   )
 }
 
@@ -54,7 +57,15 @@ export default async function HistoryPage({ params, searchParams }: Props) {
     .single()
   if (!league) notFound()
 
-  // All finished matches (to know available weeks)
+  // Get scoring settings for badge colors
+  const { data: scoringRow } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "scoring")
+    .single()
+  const scoring = (scoringRow?.value ?? { exact_score: 4, goal_difference: 3, correct_winner: 2 }) as ScoringSettings
+
+  // All finished weeks
   const { data: allFinished } = await supabase
     .from("matches")
     .select("week_number")
@@ -75,12 +86,16 @@ export default async function HistoryPage({ params, searchParams }: Props) {
     )
   }
 
-  const selectedWeek = searchParams.week ? parseInt(searchParams.week) : null
+  // Default to latest week (no "Tümü" option)
+  const selectedWeek = searchParams.week ? parseInt(searchParams.week) : availableWeeks[0]
 
-  // Fetch matches for selected week or all weeks
-  let matchQuery = supabase.from("matches").select("*").eq("status", "finished").order("match_date", { ascending: false })
-  if (selectedWeek) matchQuery = matchQuery.eq("week_number", selectedWeek)
-  const { data: finishedMatches } = await matchQuery
+  // Fetch matches for selected week
+  const { data: finishedMatches } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("status", "finished")
+    .eq("week_number", selectedWeek)
+    .order("match_date", { ascending: false })
 
   const matchIds = (finishedMatches ?? []).map(m => m.id)
 
@@ -97,14 +112,6 @@ export default async function HistoryPage({ params, searchParams }: Props) {
     predsByMatch[p.match_id]!.push(p)
   }
 
-  // Group by week, newest first
-  const weeks: Record<number, typeof finishedMatches> = {}
-  for (const m of finishedMatches ?? []) {
-    if (!weeks[m.week_number]) weeks[m.week_number] = []
-    weeks[m.week_number]!.push(m)
-  }
-  const sortedWeeks = Object.keys(weeks).map(Number).sort((a, b) => b - a)
-
   const teamLogos = await getTeamLogos()
 
   return (
@@ -116,9 +123,6 @@ export default async function HistoryPage({ params, searchParams }: Props) {
 
       {/* Week selector */}
       <div className="flex gap-1.5 flex-wrap">
-        <Button size="sm" variant={!selectedWeek ? "default" : "outline"} asChild className="h-7 text-xs px-2">
-          <Link href={`/leagues/${params.id}/history`}>Tümü</Link>
-        </Button>
         {availableWeeks.map(w => (
           <Button key={w} size="sm" variant={selectedWeek === w ? "default" : "outline"} asChild className="h-7 text-xs px-2">
             <Link href={`/leagues/${params.id}/history?week=${w}`}>Hf. {w}</Link>
@@ -126,29 +130,31 @@ export default async function HistoryPage({ params, searchParams }: Props) {
         ))}
       </div>
 
-      {sortedWeeks.map(week => (
-        <section key={week} className="space-y-2">
-          {/* Week header */}
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-              Hafta {week}
-            </span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
+      {/* Week header */}
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+          Hafta {selectedWeek}
+        </span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
 
-          {weeks[week]!.map(match => {
+      {finishedMatches?.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Bu haftaya ait tamamlanmış maç yok.</p>
+      ) : (
+        <div className="space-y-2">
+          {(finishedMatches ?? []).map(match => {
             const preds = (predsByMatch[match.id] ?? []).sort(
-              (a, b) => (b.points_earned ?? 0) - (a.points_earned ?? 0)
+              (a, b) => (b.points_earned ?? -1) - (a.points_earned ?? -1)
             )
 
             return (
               <Card key={match.id}>
                 <div className="flex items-center justify-between px-3 py-2 border-b">
                   <div className="flex items-center gap-1.5 text-xs font-semibold flex-wrap">
-                    <TeamName name={match.home_team} teamLogos={teamLogos} />
+                    <TeamName name={match.home_team} teamLogos={teamLogos} leagueId={params.id} />
                     <span className="text-muted-foreground font-normal">vs</span>
-                    <TeamName name={match.away_team} teamLogos={teamLogos} />
+                    <TeamName name={match.away_team} teamLogos={teamLogos} leagueId={params.id} />
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="text-[10px] text-muted-foreground hidden sm:block">
@@ -168,12 +174,16 @@ export default async function HistoryPage({ params, searchParams }: Props) {
                       {preds.map(p => {
                         const profile = (p.profiles as unknown) as { username: string; display_name: string | null } | null
                         const name = profile?.display_name || profile?.username || "?"
-                        const pts = p.points_earned ?? 0
+                        const pts = p.points_earned
                         const isMe = p.user_id === user.id
 
                         let badgeVariant: "default" | "secondary" | "outline" = "outline"
-                        if (pts === 4) badgeVariant = "default"
-                        else if (pts >= 2) badgeVariant = "secondary"
+                        let badgeText = "—"
+                        if (pts !== null) {
+                          badgeText = pts === scoring.exact_score ? `🎯 ${pts}pt` : pts > 0 ? `${pts} pt` : "0 pt"
+                          if (pts === scoring.exact_score) badgeVariant = "default"
+                          else if (pts > 0) badgeVariant = "secondary"
+                        }
 
                         return (
                           <div
@@ -189,7 +199,7 @@ export default async function HistoryPage({ params, searchParams }: Props) {
                                 {p.predicted_home}–{p.predicted_away}
                               </span>
                               <Badge variant={badgeVariant} className="w-16 justify-center text-xs px-1 py-0">
-                                {pts === 4 ? "🎯 " + pts + "pt" : pts > 0 ? pts + " pt" : "0 pt"}
+                                {badgeText}
                               </Badge>
                             </div>
                           </div>
@@ -201,8 +211,8 @@ export default async function HistoryPage({ params, searchParams }: Props) {
               </Card>
             )
           })}
-        </section>
-      ))}
+        </div>
+      )}
     </div>
   )
 }

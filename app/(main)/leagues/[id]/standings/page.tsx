@@ -24,7 +24,6 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     .single()
   if (!league) notFound()
 
-  // Check membership
   const { data: membership } = await supabase
     .from("league_members")
     .select("id")
@@ -33,27 +32,40 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     .single()
   if (!membership) notFound()
 
-  // Fetch all weekly_points for this league
-  const { data: weeklyPoints } = await supabase
-    .from("weekly_points")
-    .select("user_id, week_number, points, predictions_made, profiles(username, display_name)")
+  // Fetch all finished matches (global, not per league)
+  const { data: finishedMatches } = await supabase
+    .from("matches")
+    .select("id, week_number")
+    .eq("status", "finished")
+
+  const finishedMatchIds = (finishedMatches ?? []).map(m => m.id)
+  const weekByMatchId: Record<string, number> = Object.fromEntries(
+    (finishedMatches ?? []).map(m => [m.id, m.week_number])
+  )
+  const availableWeeks = Array.from(new Set((finishedMatches ?? []).map(m => m.week_number))).sort((a, b) => b - a)
+
+  // Fetch all predictions for this league's finished matches
+  const { data: preds } = await supabase
+    .from("predictions")
+    .select("user_id, match_id, points_earned, profiles(username, display_name)")
     .eq("league_id", params.id)
-    .eq("season_year", league.season_year)
+    .in("match_id", finishedMatchIds.length > 0 ? finishedMatchIds : ["00000000-0000-0000-0000-000000000000"])
+    .not("points_earned", "is", null)
 
   // Build overall standings
   const totalsMap: Record<string, { points: number; predictions_made: number; username: string; display_name: string | null }> = {}
-  for (const row of weeklyPoints ?? []) {
-    const profile = (row.profiles as unknown) as { username?: string; display_name?: string } | null
-    if (!totalsMap[row.user_id]) {
-      totalsMap[row.user_id] = {
+  for (const p of preds ?? []) {
+    const profile = (p.profiles as unknown) as { username?: string; display_name?: string } | null
+    if (!totalsMap[p.user_id]) {
+      totalsMap[p.user_id] = {
         points: 0,
         predictions_made: 0,
         username: profile?.username ?? "?",
         display_name: profile?.display_name ?? null,
       }
     }
-    totalsMap[row.user_id].points += row.points ?? 0
-    totalsMap[row.user_id].predictions_made += row.predictions_made ?? 0
+    totalsMap[p.user_id].points += p.points_earned ?? 0
+    totalsMap[p.user_id].predictions_made += 1
   }
 
   const overallRows: StandingRow[] = Object.entries(totalsMap)
@@ -68,24 +80,35 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     .sort((a, b) => b.total_points - a.total_points)
     .map((row, i) => ({ ...row, rank: i + 1 }))
 
-  // Available weeks
-  const availableWeeks = Array.from(new Set((weeklyPoints ?? []).map((r) => r.week_number))).sort((a, b) => b - a)
   const selectedWeek = searchParams.week ? parseInt(searchParams.week) : availableWeeks[0]
 
-  // Weekly standings
-  const weeklyRows: StandingRow[] = (weeklyPoints ?? [])
-    .filter((r) => r.week_number === selectedWeek)
-    .map((r) => {
-      const profile = (r.profiles as unknown) as { username?: string; display_name?: string } | null
-      return {
-        user_id: r.user_id,
+  // Weekly standings from predictions
+  const weeklyMap: Record<string, { points: number; predictions_made: number; username: string; display_name: string | null }> = {}
+  for (const p of preds ?? []) {
+    const matchWeek = weekByMatchId[p.match_id]
+    if (matchWeek !== selectedWeek) continue
+    const profile = (p.profiles as unknown) as { username?: string; display_name?: string } | null
+    if (!weeklyMap[p.user_id]) {
+      weeklyMap[p.user_id] = {
+        points: 0,
+        predictions_made: 0,
         username: profile?.username ?? "?",
         display_name: profile?.display_name ?? null,
-        total_points: r.points ?? 0,
-        predictions_made: r.predictions_made ?? 0,
-        rank: 0,
       }
-    })
+    }
+    weeklyMap[p.user_id].points += p.points_earned ?? 0
+    weeklyMap[p.user_id].predictions_made += 1
+  }
+
+  const weeklyRows: StandingRow[] = Object.entries(weeklyMap)
+    .map(([userId, data]) => ({
+      user_id: userId,
+      username: data.username,
+      display_name: data.display_name,
+      total_points: data.points,
+      predictions_made: data.predictions_made,
+      rank: 0,
+    }))
     .sort((a, b) => b.total_points - a.total_points)
     .map((row, i) => ({ ...row, rank: i + 1 }))
 
@@ -108,7 +131,11 @@ export default async function StandingsPage({ params, searchParams }: Props) {
               <CardTitle>Genel Sıralama</CardTitle>
             </CardHeader>
             <CardContent>
-              <StandingsTable rows={overallRows} currentUserId={user.id} />
+              {overallRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Henüz puanlı tahmin yok. Biten maç sonuçları hesaplandıktan sonra puan durumu burada görünür.</p>
+              ) : (
+                <StandingsTable rows={overallRows} currentUserId={user.id} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -131,10 +158,14 @@ export default async function StandingsPage({ params, searchParams }: Props) {
             )}
             <Card>
               <CardHeader>
-                <CardTitle>Hafta {selectedWeek} Sıralaması</CardTitle>
+                <CardTitle>Hafta {selectedWeek ?? "—"} Sıralaması</CardTitle>
               </CardHeader>
               <CardContent>
-                <StandingsTable rows={weeklyRows} currentUserId={user.id} />
+                {weeklyRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Bu haftaya ait puanlı tahmin yok.</p>
+                ) : (
+                  <StandingsTable rows={weeklyRows} currentUserId={user.id} />
+                )}
               </CardContent>
             </Card>
           </div>

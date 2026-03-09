@@ -11,7 +11,6 @@ import {
   Trophy,
   ArrowLeft,
   ImagePlus,
-  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -21,7 +20,6 @@ const navItems = [
   { href: "/admin/leagues", label: "Ligler", icon: Trophy },
   { href: "/admin/users", label: "Kullanıcılar", icon: Users },
   { href: "/admin/team-logos", label: "Takım Logoları", icon: ImagePlus },
-  { href: "/admin/special", label: "Özel Tahminler", icon: Sparkles },
   { href: "/admin/settings", label: "Ayarlar", icon: Settings },
 ]
 

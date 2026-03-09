@@ -5,7 +5,6 @@ import { MatchCard } from "@/components/match-card"
 import { Button } from "@/components/ui/button"
 import { getTeamLogos } from "@/lib/team-logos"
 import { Badge } from "@/components/ui/badge"
-import { LeagueSuggestionPanel } from "@/components/league-suggestion-panel"
 import type { FormResult, TeamFormMap } from "@/types"
 
 interface Props {
@@ -166,8 +165,6 @@ export default async function PredictionsPage({ params, searchParams }: Props) {
           ))
         )}
       </div>
-
-      <LeagueSuggestionPanel leagueId={params.id} userId={user.id} />
     </div>
   )
 }

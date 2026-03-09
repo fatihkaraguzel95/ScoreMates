@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient, createClient } from "@/lib/supabase/server"
 
 export async function PATCH(req: NextRequest) {
   const supabase = createClient()
@@ -12,7 +12,8 @@ export async function PATCH(req: NextRequest) {
   if (body.display_name !== undefined) updates.display_name = body.display_name || null
   if (body.favorite_team !== undefined) updates.favorite_team = body.favorite_team || null
 
-  const { error } = await supabase
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase
     .from("profiles")
     .update(updates)
     .eq("id", user.id)

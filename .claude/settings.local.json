@@ -11,7 +11,8 @@
       "Bash(pkill:*)",
       "Bash(npx next:*)",
       "Bash(npx supabase:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(psql:*)"
     ]
   }
 }
